@@ -1,6 +1,6 @@
 PODS:
   - JLToast (1.3.2)
-  - Just (0.4.2)
+  - Just (0.4.3)
 
 DEPENDENCIES:
   - JLToast (~> 1.3)
@@ -8,6 +8,6 @@ DEPENDENCIES:
 
 SPEC CHECKSUMS:
   JLToast: e76b9f82ca29aef98993053302e5a9c49ed905a4
-  Just: 4b8c54d45369261725c15e2bffa4a25788ec1ff2
+  Just: 22bdb25ac62a15f0c5860f69ef4e0782cda34f31
 
 COCOAPODS: 0.39.0

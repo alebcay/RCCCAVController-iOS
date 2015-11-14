@@ -10,12 +10,13 @@ import UIKit
 import JLToast
 import Just
 
-let API_SERVER_CONTROLLER_URL = "http://107.15.102.164.xip.io:8080"
+let API_SERVER_CONTROLLER_URL = "http://192.168.1.37"
 
 internal class API {
     class func makeCall(cmd : String) -> Bool {
         let response = Just.get(API_SERVER_CONTROLLER_URL + "/rcccav/" + cmd)
         if (response.ok) {
+            print(String(response))
             return true
         }
         else {
@@ -33,35 +34,43 @@ internal class Input {
     }
 }
 
-internal class Projector {
+internal class Projector : Hashable, Equatable {
     let name : String
+    let value : String
     let id : Int
     var on = false
     var frozen = false
-    init(desiredName : String, desiredId : Int) {
+    var hashValue: Int {
+        return self.value.hashValue
+    }
+    init(desiredName : String, desiredId : Int, desiredValue : String) {
         name = desiredName
         id = desiredId
+        value = desiredValue
     }
-    
     func switchTo(inputSource : Input) -> Bool {
         return API.makeCall("video/vga_matrix_switch/S" + String(inputSource.id) + "_" + String(self.id))
     }
     
     func turnOn() -> Bool {
-        return API.makeCall("video/" + self.name + "/ON")
+        return API.makeCall("video/" + self.value + "/ON")
     }
     
     func turnOff() -> Bool {
-        return API.makeCall("video/" + self.name + "/OFF")
+        return API.makeCall("video/" + self.value + "/OFF")
     }
     
     func freeze() -> Bool {
-        return API.makeCall("video/" + self.name + "/FREEZE_ON")
+        return API.makeCall("video/" + self.value + "/FREEZE_ON")
     }
     
     func unfreeze() -> Bool {
-        return API.makeCall("video/" + self.name + "/FREEZE_OFF")
+        return API.makeCall("video/" + self.value + "/FREEZE_OFF")
     }
+}
+
+func == (lhs: Projector, rhs: Projector) -> Bool {
+    return lhs.value == rhs.value
 }
 
 internal class System {
@@ -83,11 +92,11 @@ class ViewController: UIViewController {
         super.viewDidLoad()
         PowerSwitch.selectedSegmentIndex = UISegmentedControlNoSegment
         FreezeAllSwitch.selectedSegmentIndex = UISegmentedControlNoSegment
-        FrontLeftRightSwitch.selectedSegmentIndex = UISegmentedControlNoSegment
+        FrontLeftRightBackSwitch.selectedSegmentIndex = UISegmentedControlNoSegment
         FrontCenterSwitch.selectedSegmentIndex = UISegmentedControlNoSegment
         PowerSwitch.addTarget(self, action: Selector("powerIsChanged:"), forControlEvents: UIControlEvents.ValueChanged)
         FreezeAllSwitch.addTarget(self, action: Selector("freezeAllIsChanged:"), forControlEvents: UIControlEvents.ValueChanged)
-        FrontLeftRightSwitch.addTarget(self, action: Selector("frontLeftRightIsChanged:"), forControlEvents: UIControlEvents.ValueChanged)
+        FrontLeftRightBackSwitch.addTarget(self, action: Selector("frontLeftRightIsChanged:"), forControlEvents: UIControlEvents.ValueChanged)
         FrontCenterSwitch.addTarget(self, action: Selector("frontCenterIsChanged:"), forControlEvents: UIControlEvents.ValueChanged)
         print("OK. App is ready.")
     }
@@ -97,12 +106,15 @@ class ViewController: UIViewController {
         // Dispose of any resources that can be recreated.
     }
     
-    var FrontLeftRight = Projector(desiredName: "Front Left/Right", desiredId: 1)
-    var FrontCenter    = Projector(desiredName: "Front Center", desiredId: 2)
+    var FrontLeft   = Projector(desiredName: "Front Left", desiredId: 1, desiredValue: "projector_front_left")
+    var FrontRight  = Projector(desiredName: "Front Right", desiredId: 1, desiredValue: "projector_front_right")
+    var BackCenter  = Projector(desiredName: "Back Center", desiredId: 1, desiredValue: "projector_back_center")
+    var FrontCenter = Projector(desiredName: "Front Center", desiredId: 2, desiredValue: "projector_front_center")
     
     let Mac            = Input(desiredName: "Mac", desiredId: 1)
     let Podium         = Input(desiredName: "Podium", desiredId: 2)
     let Camcorder      = Input(desiredName: "Camcorder", desiredId: 3)
+    let Laptop         = Input(desiredName: "Laptop", desiredId: 4)
     
     @IBOutlet weak var PowerSwitch: UISegmentedControl!
     
@@ -130,103 +142,89 @@ class ViewController: UIViewController {
     @IBOutlet weak var FreezeAllSwitch: UISegmentedControl!
     
     func freezeAllIsChanged(FreezeAllSwitch: UISegmentedControl) {
-        
+        FreezeAllSwitch.selectedSegmentIndex = UISegmentedControlNoSegment
     }
     
-    @IBOutlet weak var FrontLeftRightSwitch: UISegmentedControl!
+    @IBOutlet weak var FrontLeftRightBackSwitch: UISegmentedControl!
     
-    func frontLeftRightIsChanged(FrontLeftRightSwitch: UISegmentedControl) {
-        if (FrontLeftRightSwitch.selectedSegmentIndex == 0) {
-            if (FrontLeftRight.turnOff()) {
-                JLToast.makeText("Successfully powered off Front Left/Right.").show()
-            }
-            else {
-                JLToast.makeText("Failed to power off Front Left/Right.").show()
-            }
-        }
-        else if (FrontLeftRightSwitch.selectedSegmentIndex == 1) {
-            if (FrontLeftRight.freeze()) {
-                JLToast.makeText("Successfully froze Front Left/Right.").show()
-            }
-            else {
-                JLToast.makeText("Failed to freeze Front Left/Right.").show()
-            }
-        }
-        else if (FrontLeftRightSwitch.selectedSegmentIndex == 2) {
-            if (FrontLeftRight.switchTo(Mac)) {
+    func frontLeftRightIsChanged(FrontLeftRightBackSwitch: UISegmentedControl) {
+        if (FrontLeftRightBackSwitch.selectedSegmentIndex == 0) {
+            if (FrontLeft.switchTo(Mac) && FrontRight.switchTo(Mac) && BackCenter.switchTo(Mac)) {
                 JLToast.makeText("Successfully switched Front Left/Right to Mac input.").show()
             }
             else {
                 JLToast.makeText("Failed to switch Front Left/Right to Mac input.").show()
             }
         }
-        else if (FrontLeftRightSwitch.selectedSegmentIndex == 3) {
-            if (FrontLeftRight.switchTo(Podium)) {
+        else if (FrontLeftRightBackSwitch.selectedSegmentIndex == 1) {
+            if (FrontLeft.switchTo(Podium) && FrontRight.switchTo(Podium) && BackCenter.switchTo(Podium)) {
                 JLToast.makeText("Successfully switched Front Left/Right to Podium input.").show()
             }
             else {
                 JLToast.makeText("Failed to switch Front Left/Right to Podium input.").show()
             }
         }
-        else if (FrontLeftRightSwitch.selectedSegmentIndex == 4) {
-            if (FrontLeftRight.switchTo(Camcorder)) {
+        else if (FrontLeftRightBackSwitch.selectedSegmentIndex == 2) {
+            if (FrontLeft.switchTo(Camcorder) && FrontRight.switchTo(Camcorder) && BackCenter.switchTo(Camcorder)) {
                 JLToast.makeText("Successfully switched Front Left/Right to Camcorder input.").show()
             }
             else {
                 JLToast.makeText("Failed to switch Front Left/Right to Camcorder input.").show()
             }
         }
+        else if (FrontLeftRightBackSwitch.selectedSegmentIndex == 3) {
+            if (FrontLeft.switchTo(Laptop) && FrontRight.switchTo(Laptop) && BackCenter.switchTo(Laptop)) {
+                JLToast.makeText("Successfully switched Front Left/Right to Laptop input.").show()
+            }
+            else {
+                JLToast.makeText("Failed to switch Front Left/Right to Laptop input.").show()
+            }
+        }
         else {
             return
         }
+        FrontLeftRightBackSwitch.selectedSegmentIndex = UISegmentedControlNoSegment
     }
     
     @IBOutlet weak var FrontCenterSwitch: UISegmentedControl!
     
     func frontCenterIsChanged(FrontCenterSwitch: UISegmentedControl) {
         if (FrontCenterSwitch.selectedSegmentIndex == 0) {
-            if (FrontCenter.turnOff()) {
-                JLToast.makeText("Successfully powered off Front Center.").show()
+            if (FrontLeft.switchTo(Mac) && FrontRight.switchTo(Mac) && BackCenter.switchTo(Mac)) {
+                JLToast.makeText("Successfully switched Front Left/Right to Mac input.").show()
             }
             else {
-                JLToast.makeText("Failed to power off Front Center.").show()
+                JLToast.makeText("Failed to switch Front Left/Right to Mac input.").show()
             }
         }
         else if (FrontCenterSwitch.selectedSegmentIndex == 1) {
-            if (FrontCenter.freeze()) {
-                JLToast.makeText("Successfully froze Front Center.").show()
+            if (FrontLeft.switchTo(Podium) && FrontRight.switchTo(Podium) && BackCenter.switchTo(Podium)) {
+                JLToast.makeText("Successfully switched Front Left/Right to Podium input.").show()
             }
             else {
-                JLToast.makeText("Failed to freeze Front Center.").show()
+                JLToast.makeText("Failed to switch Front Left/Right to Podium input.").show()
             }
         }
         else if (FrontCenterSwitch.selectedSegmentIndex == 2) {
-            if (FrontCenter.switchTo(Mac)) {
-                JLToast.makeText("Successfully switched Front Center to Mac input.").show()
+            if (FrontLeft.switchTo(Camcorder) && FrontRight.switchTo(Camcorder) && BackCenter.switchTo(Camcorder)) {
+                JLToast.makeText("Successfully switched Front Left/Right to Camcorder input.").show()
             }
             else {
-                JLToast.makeText("Failed to switch Front Center to Mac input.").show()
+                JLToast.makeText("Failed to switch Front Left/Right to Camcorder input.").show()
             }
         }
         else if (FrontCenterSwitch.selectedSegmentIndex == 3) {
-            if (FrontCenter.switchTo(Podium)) {
-                JLToast.makeText("Successfully switched Front Center to Podium input.").show()
+            if (FrontLeft.switchTo(Laptop) && FrontRight.switchTo(Laptop) && BackCenter.switchTo(Laptop)) {
+                JLToast.makeText("Successfully switched Front Left/Right to Laptop input.").show()
             }
             else {
-                JLToast.makeText("Failed to switch Front Center to Podium input.").show()
-            }
-        }
-        else if (FrontCenterSwitch.selectedSegmentIndex == 4) {
-            if (FrontCenter.switchTo(Camcorder)) {
-                JLToast.makeText("Successfully switched Front Center to Camcorder input.").show()
-            }
-            else {
-                JLToast.makeText("Failed to switch Front Center to Camcorder input.").show()
+                JLToast.makeText("Failed to switch Front Left/Right to Laptop input.").show()
             }
         }
         else {
             return
         }
+        FrontCenterSwitch.selectedSegmentIndex = UISegmentedControlNoSegment
     }
 }
 
